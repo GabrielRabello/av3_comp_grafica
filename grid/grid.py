@@ -1,3 +1,4 @@
+import typing
 from tkinter import Tk, Canvas, Label, Frame, Button, Entry
 from .grid_data_structure import GridDataStructure
 
@@ -16,6 +17,11 @@ class Grid:
         self.main_frame = Frame(self.root)
         self.main_frame.pack(anchor='center', expand=True, fill='both')
 
+        self.x_axis = Frame(self.main_frame)
+        self.x_axis.pack(side='bottom', anchor='sw')
+
+        Label(self.x_axis, text='X').pack(side='left', anchor='w')
+
         self.grid_frame = Frame(self.main_frame)
         self.grid_frame.pack(side='left')
 
@@ -23,6 +29,10 @@ class Grid:
         clear_frame.pack()
         Button(clear_frame, text='Clear All', command=self._clear_all).pack(side='left')
         Button(clear_frame, text='Clear Selected Cells', command=self._clear_selected_cells).pack(side='left')
+
+        self.error_frame = Frame(self.grid_frame)
+        self.error_frame.pack(side='top', anchor='n')
+        self.error_label = Label(self.error_frame, text='', fg='red')
 
         self.controls_frame = Frame(self.main_frame)
         self.controls_frame.pack(side='left')
@@ -32,11 +42,10 @@ class Grid:
 
         self.canvas.bind('<Button-1>', self._on_canvas_click)
 
-
     def add_algorithm(self, name, parameters=None, algorithm=None):
         frame = Frame(self.controls_frame)
         frame.pack(anchor='w')
-        label = Label(frame, text=name)
+        label = Label(frame, text=name + ":")
         label.pack(side='left')
         entries = []
         if parameters:
@@ -54,7 +63,6 @@ class Grid:
     def render_cell(self, cell):
         self.raster.render_cell(cell)
 
-
     def clear_cell(self, cell):
         self.raster.clear_cell(cell)
         self._redraw()
@@ -63,10 +71,9 @@ class Grid:
         self._redraw()
         self.root.mainloop()
 
-
     def _select_cell(self, cell):
         self.raster.select_cell(cell)
-        
+
     def _on_canvas_click(self, event):
         x = event.x - Grid.MARGIN_SIZE
         raw_y = event.y - Grid.MARGIN_SIZE
@@ -75,10 +82,9 @@ class Grid:
         if 0 <= x <= self.grid_size[0] and 0 <= y <= self.grid_size[1]:
             print(x, y)
             cell_x = int(x // self.cell_size[0]) - self.raster.extent
-            cell_y = int(y  // self.cell_size[1]) - self.raster.extent
+            cell_y = int(y // self.cell_size[1]) - self.raster.extent
             self._select_cell((cell_x, cell_y))
             self._redraw()
-
 
     def _redraw(self):
         self.canvas.delete('all')
@@ -90,7 +96,7 @@ class Grid:
                 y1 = (dimension - j - 1) * self.cell_size[1] + Grid.MARGIN_SIZE
                 x2 = x1 + self.cell_size[0]
                 y2 = y1 + self.cell_size[1]
-                x, y = i - (self.raster.extent*2 + 1), j - (self.raster.extent*2 + 1)
+                x, y = i - (self.raster.extent * 2 + 1), j - (self.raster.extent * 2 + 1)
                 if self.raster.selected_cells[x][y]:
                     color = 'red'
                     text_color = 'white'
@@ -104,6 +110,7 @@ class Grid:
                     text_color = ''
                     text = ''
                 self.canvas.create_rectangle(x1, y1, x2, y2, fill=color, outline='gray')
+
                 if text:
                     x_center = (x1 + x2) / 2
                     y_center = (y1 + y2) / 2
@@ -113,19 +120,36 @@ class Grid:
 
                 zero_x = self.raster.extent * self.cell_size[0] + Grid.MARGIN_SIZE + self.cell_size[0] / 2
                 zero_y = self.raster.extent * self.cell_size[1] + Grid.MARGIN_SIZE + self.cell_size[1] / 2
-                self.canvas.create_line(zero_x, Grid.MARGIN_SIZE, zero_x, self.window_size[1] - Grid.MARGIN_SIZE, fill='#222222', width=3)
-                self.canvas.create_line(Grid.MARGIN_SIZE, zero_y, self.window_size[0] - Grid.MARGIN_SIZE, zero_y, fill='#222222', width=3)
-
+                self.canvas.create_line(zero_x, Grid.MARGIN_SIZE, zero_x, self.window_size[1] - Grid.MARGIN_SIZE,
+                                        fill='#222222', width=3)
+                self.canvas.create_line(Grid.MARGIN_SIZE, zero_y, self.window_size[0] - Grid.MARGIN_SIZE, zero_y,
+                                        fill='#222222', width=3)
 
     def _on_run_click(self, action, entries):
+        self._clear_error_message()
         selected_cells = self.raster.get_selected_cells()
         rendered_cells = self.raster.get_rendered_cells()
         parameters = {entry[0]: entry[1].get() for entry in entries}
-        action(selected_cells, rendered_cells, parameters)
+        try:
+            action(selected_cells, rendered_cells, parameters, self)
+        except Exception as e:
+            self._draw_error_message(e)
+
         self._clear_selected_cells()
+
+    def _draw_error_message(self, e: Exception):
+        error_message = f'Erro: {e}'
+        print(e)
+
+        self.error_label.configure(text=error_message)
+        self.error_label.pack(side='left')
+
+    def _clear_error_message(self):
+        self.error_label.configure(text='')
 
     def _clear_all(self):
         self.raster.clear_all()
+        self._clear_error_message()
         self._redraw()
 
     def _clear_selected_cells(self):
